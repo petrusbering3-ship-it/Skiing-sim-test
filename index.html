@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#bfe3f7">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⛷️</text></svg>">
+<title>Ski Slope Rush</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { height:100%; overflow:hidden; background:#9fd0ea; touch-action:none; overscroll-behavior:none;
+    font-family:-apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; user-select:none; -webkit-user-select:none; }
+  #game { position:fixed; inset:0; width:100%; height:100%; display:block; }
+  .hud { position:fixed; top:env(safe-area-inset-top, 0px); left:0; right:0; display:flex;
+    justify-content:space-between; align-items:flex-start; padding:12px 14px; pointer-events:none; z-index:5; }
+  .hud .stat { background:rgba(20,40,60,.35); backdrop-filter:blur(6px); color:#fff; border-radius:14px;
+    padding:6px 12px; font-weight:800; font-size:17px; text-shadow:0 1px 2px rgba(0,0,0,.35); }
+  .hud .sub { font-size:11px; font-weight:700; opacity:.85; letter-spacing:.06em; }
+  #multBadge { position:fixed; top:calc(env(safe-area-inset-top, 0px) + 58px); left:50%; transform:translateX(-50%);
+    color:#ff8c1a; font-weight:900; font-size:22px; text-shadow:0 2px 0 rgba(0,0,0,.2); z-index:5;
+    pointer-events:none; opacity:0; transition:opacity .2s; }
+  .overlay { position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    z-index:10; background:rgba(14,32,48,.45); backdrop-filter:blur(3px); text-align:center; padding:24px; }
+  .hidden { display:none !important; }
+  .title { font-size:clamp(38px, 10vw, 64px); font-weight:900; color:#fff; letter-spacing:-.02em;
+    text-shadow:0 4px 0 #2a7fb8, 0 8px 24px rgba(0,0,0,.35); transform:rotate(-3deg); margin-bottom:6px; }
+  .title em { font-style:normal; color:#ffd23f; }
+  .tagline { color:#eaf6ff; font-weight:600; margin-bottom:26px; text-shadow:0 1px 3px rgba(0,0,0,.4); }
+  .bigscore { font-size:clamp(44px, 12vw, 72px); font-weight:900; color:#ffd23f; text-shadow:0 3px 0 rgba(0,0,0,.25); }
+  .label { color:#cfe9ff; font-weight:700; letter-spacing:.15em; font-size:12px; }
+  .newbest { color:#ff8c1a; font-weight:900; font-size:20px; margin-top:4px; animation:pulse .7s infinite alternate; }
+  @keyframes pulse { from { transform:scale(1);} to { transform:scale(1.12);} }
+  .btn { pointer-events:auto; margin-top:16px; border:0; cursor:pointer; border-radius:999px;
+    padding:16px 42px; font-size:20px; font-weight:900; color:#0e2030; background:#ffd23f;
+    box-shadow:0 6px 0 #c99b0c, 0 10px 24px rgba(0,0,0,.3); transition:transform .08s; }
+  .btn:active { transform:translateY(4px); box-shadow:0 2px 0 #c99b0c; }
+  .btn.ghost { background:rgba(255,255,255,.14); color:#fff; box-shadow:0 4px 0 rgba(0,0,0,.25);
+    font-size:15px; padding:12px 28px; }
+  .btn.revive { background:#6ee86e; box-shadow:0 6px 0 #2f9e2f, 0 10px 24px rgba(0,0,0,.3); }
+  .hint { margin-top:22px; color:#cfe9ff; font-size:13px; font-weight:600; opacity:.85; }
+  .rowstats { display:flex; gap:28px; margin:10px 0 4px; }
+  .rowstats > div { display:flex; flex-direction:column; align-items:center; }
+  .rowstats .v { color:#fff; font-weight:900; font-size:26px; }
+  /* shop */
+  #shop .swatches { display:flex; flex-wrap:wrap; gap:14px; justify-content:center; margin:18px 0; max-width:340px; }
+  .swatch { pointer-events:auto; width:72px; height:88px; border-radius:14px; border:3px solid rgba(255,255,255,.25);
+    background:rgba(255,255,255,.1); cursor:pointer; display:flex; flex-direction:column; align-items:center;
+    justify-content:center; gap:6px; color:#fff; font-weight:800; font-size:12px; }
+  .swatch .dot { width:30px; height:30px; border-radius:50%; box-shadow:0 0 12px currentColor; }
+  .swatch.selected { border-color:#ffd23f; background:rgba(255,210,63,.18); }
+  .swatch.locked { opacity:.75; }
+  .swatch .price { font-size:11px; color:#ffd23f; }
+  #toast { position:fixed; bottom:12%; left:50%; transform:translateX(-50%); background:rgba(20,40,60,.75);
+    color:#fff; font-weight:800; padding:10px 20px; border-radius:999px; z-index:20; opacity:0;
+    transition:opacity .25s; pointer-events:none; }
+  #muteBtn { position:fixed; bottom:calc(env(safe-area-inset-bottom, 0px) + 12px); right:12px; z-index:6;
+    width:44px; height:44px; border-radius:50%; border:0; background:rgba(20,40,60,.4); color:#fff;
+    font-size:20px; cursor:pointer; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div class="hud">
+  <div class="stat"><span id="scoreVal">0</span><div class="sub">SCORE</div></div>
+  <div class="stat">🪙 <span id="coinVal">0</span></div>
+  <div class="stat"><span id="bestVal">0</span><div class="sub">BEST</div></div>
+</div>
+<div id="multBadge">×2</div>
+
+<div id="menu" class="overlay">
+  <div class="title">SKI SLOPE <em>RUSH</em></div>
+  <div class="tagline">Carve. Dodge. Send it. ⛷️</div>
+  <button class="btn" id="playBtn">▶ &nbsp;SKI!</button>
+  <button class="btn ghost" id="shopBtn">🎽 Trail Shop</button>
+  <div class="hint">Hold <b>left / right</b> side of screen to carve<br>(or use ← → / A D keys)</div>
+</div>
+
+<div id="gameover" class="overlay hidden">
+  <div class="label">RUN OVER</div>
+  <div class="bigscore" id="finalScore">0</div>
+  <div id="newBest" class="newbest hidden">🏆 NEW BEST!</div>
+  <div class="rowstats">
+    <div><span class="v" id="runDist">0m</span><span class="label">DISTANCE</span></div>
+    <div><span class="v" id="runCoins">🪙 0</span><span class="label">COINS</span></div>
+    <div><span class="v" id="runMiss">0</span><span class="label">NEAR MISSES</span></div>
+  </div>
+  <button class="btn revive hidden" id="reviveBtn">📺 &nbsp;REVIVE — keep the run!</button>
+  <button class="btn" id="retryBtn">⟲ &nbsp;ONE MORE RUN</button>
+  <button class="btn ghost" id="menuBtn">Menu</button>
+</div>
+
+<div id="shop" class="overlay hidden">
+  <div class="title" style="font-size:34px;">TRAIL <em>SHOP</em></div>
+  <div class="tagline">🪙 <span id="shopCoins">0</span> — earned on the slopes</div>
+  <div class="swatches" id="swatches"></div>
+  <button class="btn ghost" id="shopBack">← Back</button>
+</div>
+
+<div id="toast"></div>
+<button id="muteBtn" title="Sound">🔊</button>
+
+<script>
+'use strict';
+// ============================================================ setup
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+let W = 0, H = 0, DPR = 1;
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth; H = window.innerHeight;
+  canvas.width = W * DPR; canvas.height = H * DPR;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+window.addEventListener('resize', resize);
+resize();
+
+const $ = id => document.getElementById(id);
+const rand = (a, b) => a + Math.random() * (b - a);
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const lerp = (a, b, t) => a + (b - a) * t;
+
+// ============================================================ persistence
+const SAVE_KEY = 'skiRushSave';
+let save = { best: 0, coins: 0, owned: ['white'], trail: 'white', muted: false };
+try { Object.assign(save, JSON.parse(localStorage.getItem(SAVE_KEY) || '{}')); } catch (e) {}
+function persist() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} }
+
+const TRAILS = [
+  { id: 'white',   name: 'Powder',  price: 0,    color: '#ffffff' },
+  { id: 'blue',    name: 'Ice',     price: 150,  color: '#5ad1ff' },
+  { id: 'red',     name: 'Blaze',   price: 300,  color: '#ff5a5a' },
+  { id: 'green',   name: 'Toxic',   price: 500,  color: '#6ee86e' },
+  { id: 'gold',    name: 'Gold',    price: 1000, color: '#ffd23f' },
+  { id: 'rainbow', name: 'Rainbow', price: 2500, color: 'rainbow' },
+];
+function trailColor(t) {
+  const def = TRAILS.find(x => x.id === save.trail) || TRAILS[0];
+  if (def.color !== 'rainbow') return def.color;
+  return `hsl(${(t * 90) % 360}, 95%, 62%)`;
+}
+
+// ============================================================ audio (tiny synth)
+let AC = null;
+function audio() {
+  if (save.muted) return null;
+  if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} }
+  if (AC && AC.state === 'suspended') AC.resume();
+  return AC;
+}
+function beep(freq, dur, type, vol, slide) {
+  const ac = audio(); if (!ac) return;
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.type = type || 'square'; o.frequency.value = freq;
+  if (slide) o.frequency.exponentialRampToValueAtTime(slide, ac.currentTime + dur);
+  g.gain.value = vol || .12;
+  g.gain.exponentialRampToValueAtTime(.0001, ac.currentTime + dur);
+  o.connect(g).connect(ac.destination);
+  o.start(); o.stop(ac.currentTime + dur);
+}
+function noiseBurst(dur, vol, low) {
+  const ac = audio(); if (!ac) return;
+  const n = ac.sampleRate * dur, buf = ac.createBuffer(1, n, ac.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+  const s = ac.createBufferSource(); s.buffer = buf;
+  const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = low || 900;
+  const g = ac.createGain(); g.gain.value = vol || .25;
+  s.connect(f).connect(g).connect(ac.destination); s.start();
+}
+const sfx = {
+  coin:  () => beep(1050, .09, 'square', .09, 1600),
+  miss:  () => noiseBurst(.18, .12, 2400),
+  jump:  () => beep(300, .28, 'sawtooth', .1, 900),
+  land:  () => noiseBurst(.12, .18, 600),
+  crash: () => { noiseBurst(.4, .35, 500); beep(160, .3, 'sawtooth', .15, 60); },
+  click: () => beep(600, .06, 'square', .08),
+  buy:   () => { beep(700, .1, 'square', .1, 1000); setTimeout(() => beep(1000, .12, 'square', .1, 1400), 90); },
+};
+
+// ============================================================ game state
+const ST = { MENU: 0, PLAY: 1, DEAD: 2 };
+let state = ST.MENU;
+
+const player = { x: 0, y: 0, vx: 0, tilt: 0, air: 0, airT: 0, dead: false, blink: 0 };
+let obstacles = [];   // {type:'tree'|'rock'|'ramp', x, y, r, passed}
+let coins = [];       // {x, y, taken, t}
+let parts = [];       // particles
+let pops = [];        // floating score text
+let trail = [];       // carve ribbon points
+
+let speed = 0, dist = 0, travel = 0, score = 0, runCoins = 0, nearMisses = 0;
+let mult = 1, multT = 0;
+let spawnAt = 0, shake = 0, time = 0, snowT = 0;
+let usedRevive = false, newBestFlag = false;
+let steer = 0; // -1..1 input
+
+const EDGE = () => Math.min(W * .06, 40);
+const PLAYER_Y = () => H * .30;
+
+function resetRun(keepScore) {
+  obstacles = []; coins = []; parts = []; pops = []; trail = [];
+  player.x = W / 2; player.vx = 0; player.tilt = 0; player.air = 0; player.dead = false;
+  player.blink = keepScore ? 2 : 0;
+  if (!keepScore) {
+    speed = 340; dist = 0; travel = 0; score = 0; runCoins = 0; nearMisses = 0;
+    mult = 1; multT = 0; usedRevive = false; newBestFlag = false;
+  }
+  spawnAt = travel + 400;
+}
+
+function startGame() {
+  resetRun(false);
+  state = ST.PLAY;
+  showOverlay(null);
+  sfx.click();
+}
+
+// ============================================================ input
+const keys = {};
+window.addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if (state === ST.MENU && (e.code === 'Space' || e.code === 'Enter')) startGame();
+  else if (state === ST.DEAD && (e.code === 'Space' || e.code === 'Enter')) startGame();
+});
+window.addEventListener('keyup', e => { keys[e.code] = false; });
+
+let touching = false, touchX = 0;
+function onPoint(e, down) {
+  const t = e.touches ? e.touches[0] : e;
+  if (down !== undefined) touching = down;
+  if (t) touchX = t.clientX;
+}
+canvas.addEventListener('touchstart', e => { e.preventDefault(); onPoint(e, true); }, { passive: false });
+canvas.addEventListener('touchmove',  e => { e.preventDefault(); onPoint(e); }, { passive: false });
+canvas.addEventListener('touchend',   e => { e.preventDefault(); if (!e.touches.length) touching = false; }, { passive: false });
+canvas.addEventListener('mousedown', e => onPoint(e, true));
+canvas.addEventListener('mousemove', e => onPoint(e));
+window.addEventListener('mouseup', () => { touching = false; });
+
+function readSteer() {
+  let s = 0;
+  if (keys.ArrowLeft || keys.KeyA) s -= 1;
+  if (keys.ArrowRight || keys.KeyD) s += 1;
+  if (touching) s += touchX < W / 2 ? -1 : 1;
+  return clamp(s, -1, 1);
+}
+
+// ============================================================ spawning
+function spawnWave() {
+  const pad = EDGE() + 30;
+  const y = H + 60;
+  const roll = Math.random();
+
+  if (roll < .14 && dist > 120) {
+    // jump ramp — always worth hitting
+    obstacles.push({ type: 'ramp', x: rand(pad + 40, W - pad - 40), y, r: 34, passed: false });
+  } else if (roll < .30) {
+    // coin arc
+    const cx = rand(pad + 40, W - pad - 40), dir = Math.random() < .5 ? 1 : -1;
+    for (let i = 0; i < 6; i++)
+      coins.push({ x: clamp(cx + Math.sin(i * .55) * 70 * dir, pad, W - pad), y: y + i * 46, taken: false, t: rand(0, 6) });
+  } else {
+    // obstacles: 1-3 depending on difficulty, guaranteed gap
+    const n = 1 + Math.floor(Math.min(dist / 1200, 2)) + (Math.random() < .4 ? 1 : 0);
+    const gapX = rand(pad + 60, W - pad - 60), gapW = Math.max(W * .24, 110);
+    let placed = 0, tries = 0;
+    while (placed < n && tries++ < 14) {
+      const x = rand(pad, W - pad);
+      if (Math.abs(x - gapX) < gapW / 2 + 30) continue;
+      if (obstacles.some(o => Math.abs(o.y - y) < 50 && Math.abs(o.x - x) < 70)) continue;
+      const tree = Math.random() < .65;
+      obstacles.push({ type: tree ? 'tree' : 'rock', x, y: y + rand(-25, 25), r: tree ? 16 : 20, passed: false });
+      placed++;
+    }
+    // sprinkle a coin in the gap sometimes
+    if (Math.random() < .35) coins.push({ x: gapX, y: y + 10, taken: false, t: rand(0, 6) });
+  }
+  // gap (px of travel) shrinks as speed rises → density ramps
+  spawnAt = travel + lerp(430, 250, Math.min(speed / 1350, 1)) * rand(.85, 1.2);
+}
+
+// ============================================================ scoring helpers
+function pop(x, y, txt, color) { pops.push({ x, y, txt, color: color || '#fff', life: 1 }); }
+function bumpMult() {
+  multT = 3.2;
+  if (mult < 5) mult++;
+  const b = $('multBadge');
+  b.textContent = '×' + mult;
+  b.style.opacity = mult > 1 ? 1 : 0;
+}
+
+// ============================================================ update
+function update(dt) {
+  time += dt;
+  if (state !== ST.PLAY) return;
+
+  // difficulty ramp
+  speed = Math.min(speed + dt * 14, 1350);
+  travel += speed * dt;      // px, paces the spawner
+  dist += speed * dt * 0.06; // ~metres
+  score += speed * dt * 0.03 * mult;
+
+  // combo timer
+  if (multT > 0) { multT -= dt; if (multT <= 0) { mult = 1; $('multBadge').style.opacity = 0; } }
+
+  // steering with momentum
+  steer = readSteer();
+  const accel = 2600, fric = player.air > 0 ? 2.2 : 5;
+  player.vx += steer * accel * dt;
+  player.vx -= player.vx * fric * dt;
+  player.vx = clamp(player.vx, -620, 620);
+  player.x = clamp(player.x + player.vx * dt, EDGE() + 14, W - EDGE() - 14);
+  player.tilt = lerp(player.tilt, player.vx / 620, 12 * dt);
+  player.y = PLAYER_Y();
+  if (player.blink > 0) player.blink -= dt;
+
+  // air time
+  if (player.air > 0) {
+    player.air -= dt;
+    if (player.air <= 0) { sfx.land(); shake = Math.max(shake, 4); spray(14); }
+  }
+
+  // carve trail ribbon
+  trail.push({ x: player.x, y: player.y, t: time, air: player.air > 0 });
+  for (const p of trail) p.y -= speed * dt;
+  while (trail.length && trail[0].y < -20) trail.shift();
+
+  // snow spray while carving hard
+  if (Math.abs(steer) > 0 && player.air <= 0 && Math.random() < .6) spray(1);
+
+  // spawn
+  if (travel >= spawnAt) spawnWave();
+
+  // move & collide obstacles
+  const prx = 13; // player hit radius (forgiving)
+  for (let i = obstacles.length - 1; i >= 0; i--) {
+    const o = obstacles[i];
+    o.y -= speed * dt;
+    if (o.y < -90) { obstacles.splice(i, 1); continue; }
+
+    const dx = o.x - player.x, dy = o.y - player.y;
+    const d2 = dx * dx + dy * dy, rr = o.r + prx;
+
+    if (o.type === 'ramp') {
+      if (!o.passed && d2 < rr * rr * 1.6 && player.air <= 0) {
+        o.passed = true;
+        player.air = 1.15; player.airT = 1.15;
+        score += 150 * mult; bumpMult();
+        pop(player.x, player.y - 40, 'AIR! +' + 150 * mult, '#5ad1ff');
+        sfx.jump(); shake = Math.max(shake, 3);
+      }
+      continue;
+    }
+
+    if (player.air > 0 || player.blink > 0) { // flying over / respawn grace
+      if (!o.passed && o.y < player.y) o.passed = true;
+      continue;
+    }
+
+    if (d2 < rr * rr) { crash(); return; }
+
+    // near miss: passes the player line close but clean
+    if (!o.passed && o.y < player.y - 6) {
+      o.passed = true;
+      if (Math.abs(dx) < o.r + 42) {
+        nearMisses++;
+        const pts = 25 * mult;
+        score += pts; bumpMult();
+        pop(o.x, player.y - 30, 'CLOSE! +' + pts, '#ff8c1a');
+        sfx.miss();
+      }
+    }
+  }
+
+  // coins
+  for (let i = coins.length - 1; i >= 0; i--) {
+    const c = coins[i];
+    c.y -= speed * dt; c.t += dt;
+    if (c.y < -40) { coins.splice(i, 1); continue; }
+    const dx = c.x - player.x, dy = c.y - player.y;
+    if (!c.taken && dx * dx + dy * dy < 34 * 34) {
+      c.taken = true;
+      runCoins++; score += 10 * mult; multT = Math.max(multT, 1.6);
+      pop(c.x, c.y - 16, '+🪙', '#ffd23f');
+      sfx.coin();
+      coins.splice(i, 1);
+    }
+  }
+
+  // particles & popups
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const p = parts[i];
+    p.x += p.vx * dt; p.y += p.vy * dt - speed * dt * p.stick; p.life -= dt * 2;
+    if (p.life <= 0) parts.splice(i, 1);
+  }
+  for (let i = pops.length - 1; i >= 0; i--) {
+    const p = pops[i];
+    p.y -= 60 * dt; p.life -= dt * .9;
+    if (p.life <= 0) pops.splice(i, 1);
+  }
+
+  shake = Math.max(0, shake - dt * 30);
+  snowT += dt;
+
+  // HUD
+  $('scoreVal').textContent = Math.floor(score).toLocaleString();
+  $('coinVal').textContent = save.coins + runCoins;
+  $('bestVal').textContent = Math.max(save.best, Math.floor(score)).toLocaleString();
+}
+
+function spray(n) {
+  for (let i = 0; i < n; i++)
+    parts.push({ x: player.x + rand(-8, 8), y: player.y + rand(4, 14),
+      vx: rand(-90, 90) - player.vx * .3, vy: rand(-30, 60), life: rand(.4, 1), stick: .6,
+      col: '#fff', r: rand(1.5, 3.5) });
+}
+
+function crash() {
+  sfx.crash(); shake = 14;
+  for (let i = 0; i < 26; i++)
+    parts.push({ x: player.x + rand(-10, 10), y: player.y + rand(-10, 10),
+      vx: rand(-260, 260), vy: rand(-260, 160), life: rand(.5, 1.4), stick: .3,
+      col: Math.random() < .5 ? '#fff' : '#d33', r: rand(2, 5) });
+  state = ST.DEAD;
+  player.dead = true;
+
+  save.coins += runCoins;
+  newBestFlag = Math.floor(score) > save.best;
+  if (newBestFlag) save.best = Math.floor(score);
+  persist();
+
+  $('finalScore').textContent = Math.floor(score).toLocaleString();
+  $('runDist').textContent = Math.floor(dist) + 'm';
+  $('runCoins').textContent = '🪙 ' + runCoins;
+  $('runMiss').textContent = nearMisses;
+  $('newBest').classList.toggle('hidden', !newBestFlag);
+  $('reviveBtn').classList.toggle('hidden', usedRevive || dist < 200);
+  setTimeout(() => showOverlay('gameover'), 550);
+}
+
+function revive() {
+  // hook point for a rewarded ad — free in this build
+  usedRevive = true;
+  save.coins -= 0;
+  runCoins = 0; // banked already on crash
+  resetRun(true);
+  state = ST.PLAY;
+  showOverlay(null);
+  sfx.buy();
+  toast('Back on your feet! ⛷️');
+}
+
+// ============================================================ drawing
+function drawBackground() {
+  // sky→snow vertical wash, subtly shifts with distance for "descending" feel
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  const shift = Math.min(dist / 8000, 1);
+  g.addColorStop(0, `hsl(${lerp(203, 218, shift)}, 68%, ${lerp(80, 68, shift)}%)`);
+  g.addColorStop(.35, '#eef7fd');
+  g.addColorStop(1, '#ffffff');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+
+  // slope texture: scrolling mogul dots
+  ctx.fillStyle = 'rgba(160,200,225,.28)';
+  const step = 90, off = (dist * 16.7) % step;
+  for (let y = -step + (step - off); y < H + step; y += step) {
+    for (let x = ((y * 7) % step); x < W; x += step) {
+      ctx.beginPath();
+      ctx.ellipse(x, y, 26, 9, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // course edges: orange netting poles
+  const e = EDGE();
+  ctx.fillStyle = 'rgba(210,235,250,.9)';
+  ctx.fillRect(0, 0, e, H); ctx.fillRect(W - e, 0, e, H);
+  ctx.strokeStyle = '#ff7a1a'; ctx.lineWidth = 3;
+  const poleGap = 130, poff = (dist * 16.7) % poleGap;
+  ctx.beginPath();
+  for (let y = -poleGap + (poleGap - poff); y < H + poleGap; y += poleGap) {
+    ctx.moveTo(e - 2, y); ctx.lineTo(e - 2, y + 26);
+    ctx.moveTo(W - e + 2, y); ctx.lineTo(W - e + 2, y + 26);
+  }
+  ctx.stroke();
+
+  // ambient falling snow
+  ctx.fillStyle = 'rgba(255,255,255,.8)';
+  for (let i = 0; i < 24; i++) {
+    const sx = (i * 131.7 + Math.sin(snowT * .8 + i) * 40) % W;
+    const sy = (i * 97.3 + snowT * (40 + (i % 5) * 22)) % H;
+    ctx.fillRect(sx, sy, 2.5, 2.5);
+  }
+}
+
+function drawTrail() {
+  if (trail.length < 2) return;
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  for (let pass = 0; pass < 2; pass++) {
+    ctx.beginPath();
+    let started = false;
+    for (const p of trail) {
+      if (p.air) { started = false; continue; } // gap while airborne
+      if (!started) { ctx.moveTo(p.x, p.y); started = true; }
+      else ctx.lineTo(p.x, p.y);
+    }
+    if (pass === 0) { ctx.strokeStyle = 'rgba(120,170,205,.35)'; ctx.lineWidth = 14; }
+    else { ctx.strokeStyle = trailColor(time); ctx.globalAlpha = .8; ctx.lineWidth = 5; }
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+}
+
+function drawTree(o) {
+  ctx.save(); ctx.translate(o.x, o.y);
+  ctx.fillStyle = 'rgba(60,90,110,.25)';
+  ctx.beginPath(); ctx.ellipse(2, 8, 18, 7, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#7a4a21'; ctx.fillRect(-4, -4, 8, 14);
+  for (let i = 0; i < 3; i++) {
+    const w = 34 - i * 8, y = -6 - i * 16;
+    ctx.fillStyle = i % 2 ? '#1e7a46' : '#249457';
+    ctx.beginPath();
+    ctx.moveTo(-w / 2, y); ctx.lineTo(w / 2, y); ctx.lineTo(0, y - 22);
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.fillStyle = 'rgba(255,255,255,.85)';
+  ctx.beginPath(); ctx.moveTo(-9, -38); ctx.lineTo(9, -38); ctx.lineTo(0, -56); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+function drawRock(o) {
+  ctx.save(); ctx.translate(o.x, o.y);
+  ctx.fillStyle = 'rgba(60,90,110,.25)';
+  ctx.beginPath(); ctx.ellipse(2, 10, 22, 8, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#8b95a1';
+  ctx.beginPath();
+  ctx.moveTo(-22, 8); ctx.lineTo(-14, -12); ctx.lineTo(2, -18); ctx.lineTo(18, -8); ctx.lineTo(22, 8);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#aeb8c4';
+  ctx.beginPath(); ctx.moveTo(-14, -12); ctx.lineTo(2, -18); ctx.lineTo(6, -6); ctx.lineTo(-8, -2); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.9)';
+  ctx.beginPath(); ctx.ellipse(-2, -14, 12, 5, -.2, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+
+function drawRamp(o) {
+  ctx.save(); ctx.translate(o.x, o.y);
+  ctx.fillStyle = '#ffffff';
+  ctx.strokeStyle = '#2a7fb8'; ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(-34, 16); ctx.lineTo(34, 16); ctx.lineTo(22, -14); ctx.lineTo(-22, -14);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#2a7fb8';
+  const bob = Math.sin(time * 6) * 3;
+  ctx.beginPath();
+  ctx.moveTo(0, -2 + bob); ctx.lineTo(-10, 8 + bob); ctx.lineTo(-4, 8 + bob); ctx.lineTo(-4, 14 + bob);
+  ctx.lineTo(4, 14 + bob); ctx.lineTo(4, 8 + bob); ctx.lineTo(10, 8 + bob);
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+function drawCoin(c) {
+  ctx.save(); ctx.translate(c.x, c.y);
+  const squish = Math.abs(Math.sin(c.t * 4));
+  ctx.fillStyle = '#c99b0c';
+  ctx.beginPath(); ctx.ellipse(0, 2, 11 * Math.max(squish, .25), 11, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#ffd23f';
+  ctx.beginPath(); ctx.ellipse(0, 0, 11 * Math.max(squish, .25), 11, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#c99b0c';
+  ctx.beginPath(); ctx.ellipse(0, 0, 6 * Math.max(squish, .25), 6, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+
+function drawPlayer() {
+  if (player.dead) return;
+  const airK = player.air > 0 ? Math.sin((1 - player.air / player.airT) * Math.PI) : 0;
+  const scale = 1 + airK * .5;
+  const blinkHide = player.blink > 0 && Math.floor(player.blink * 10) % 2 === 0;
+
+  // shadow (separates when airborne)
+  ctx.fillStyle = 'rgba(60,90,110,.3)';
+  ctx.beginPath();
+  ctx.ellipse(player.x, player.y + 14 + airK * 26, 16 * (1 - airK * .4), 6 * (1 - airK * .4), 0, 0, Math.PI * 2);
+  ctx.fill();
+  if (blinkHide) return;
+
+  ctx.save();
+  ctx.translate(player.x, player.y - airK * 30);
+  ctx.rotate(player.tilt * .55 + (player.air > 0 ? Math.sin(time * 10) * .12 : 0));
+  ctx.scale(scale, scale);
+
+  // skis
+  ctx.strokeStyle = '#e33'; ctx.lineWidth = 4; ctx.lineCap = 'round';
+  const spread = player.air > 0 ? 3 : 5;
+  ctx.beginPath();
+  ctx.moveTo(-spread, -6); ctx.lineTo(-spread - player.tilt * 6, 20);
+  ctx.moveTo(spread, -6); ctx.lineTo(spread - player.tilt * 6, 20);
+  ctx.stroke();
+  // body
+  ctx.fillStyle = '#2a7fb8';
+  ctx.beginPath();
+  ctx.moveTo(-8, 6); ctx.lineTo(8, 6); ctx.lineTo(5, -10); ctx.lineTo(-5, -10);
+  ctx.closePath(); ctx.fill();
+  // head + goggles
+  ctx.fillStyle = '#ffd9b3';
+  ctx.beginPath(); ctx.arc(0, -14, 6, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#e33';
+  ctx.beginPath(); ctx.arc(0, -17, 6, Math.PI, 0); ctx.fill();
+  ctx.fillStyle = '#123';
+  ctx.fillRect(-5, -16, 10, 3.5);
+  // poles
+  ctx.strokeStyle = '#555'; ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(-8, -4); ctx.lineTo(-14, 12 - steer * 6);
+  ctx.moveTo(8, -4); ctx.lineTo(14, 12 + steer * 6);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function draw() {
+  ctx.save();
+  if (shake > 0) ctx.translate(rand(-shake, shake), rand(-shake, shake));
+
+  drawBackground();
+  drawTrail();
+
+  // depth sort: things above the player draw first
+  const behind = [], front = [];
+  for (const o of obstacles) (o.y < player.y ? behind : front).push(o);
+  const drawOb = o => o.type === 'tree' ? drawTree(o) : o.type === 'rock' ? drawRock(o) : drawRamp(o);
+  behind.sort((a, b) => a.y - b.y).forEach(drawOb);
+  for (const c of coins) drawCoin(c);
+  drawPlayer();
+  front.sort((a, b) => a.y - b.y).forEach(drawOb);
+
+  // particles
+  for (const p of parts) {
+    ctx.globalAlpha = Math.max(p.life, 0);
+    ctx.fillStyle = p.col;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // speed lines at high velocity
+  if (state === ST.PLAY && speed > 800) {
+    ctx.strokeStyle = `rgba(255,255,255,${(speed - 800) / 1400})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let i = 0; i < 8; i++) {
+      const x = (i * 173.3) % W, y = (i * 311 + time * speed * .9) % H;
+      ctx.moveTo(x, y); ctx.lineTo(x, y + 40);
+    }
+    ctx.stroke();
+  }
+
+  // score popups
+  ctx.textAlign = 'center'; ctx.font = '900 18px sans-serif';
+  for (const p of pops) {
+    ctx.globalAlpha = Math.max(p.life, 0);
+    ctx.fillStyle = p.color;
+    ctx.strokeStyle = 'rgba(0,0,0,.4)'; ctx.lineWidth = 3;
+    ctx.strokeText(p.txt, p.x, p.y);
+    ctx.fillText(p.txt, p.x, p.y);
+  }
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+// ============================================================ main loop
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min((now - last) / 1000, .05);
+  last = now;
+  update(dt);
+  draw();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+// pause-friendly: don't accumulate dt while tabbed away
+document.addEventListener('visibilitychange', () => { last = performance.now(); });
+
+// ============================================================ UI wiring
+function showOverlay(id) {
+  for (const o of ['menu', 'gameover', 'shop']) $(o).classList.toggle('hidden', o !== id);
+}
+function toast(msg) {
+  const t = $('toast');
+  t.textContent = msg; t.style.opacity = 1;
+  clearTimeout(t._h); t._h = setTimeout(() => { t.style.opacity = 0; }, 1600);
+}
+
+$('playBtn').addEventListener('click', startGame);
+$('retryBtn').addEventListener('click', startGame);
+$('reviveBtn').addEventListener('click', revive);
+$('menuBtn').addEventListener('click', () => { showOverlay('menu'); state = ST.MENU; sfx.click(); });
+$('shopBtn').addEventListener('click', () => { renderShop(); showOverlay('shop'); sfx.click(); });
+$('shopBack').addEventListener('click', () => { showOverlay('menu'); sfx.click(); });
+$('muteBtn').addEventListener('click', () => {
+  save.muted = !save.muted; persist();
+  $('muteBtn').textContent = save.muted ? '🔇' : '🔊';
+});
+$('muteBtn').textContent = save.muted ? '🔇' : '🔊';
+
+function renderShop() {
+  $('shopCoins').textContent = save.coins;
+  const box = $('swatches');
+  box.innerHTML = '';
+  for (const t of TRAILS) {
+    const owned = save.owned.includes(t.id);
+    const el = document.createElement('button');
+    el.className = 'swatch' + (save.trail === t.id ? ' selected' : '') + (owned ? '' : ' locked');
+    const dotStyle = t.color === 'rainbow'
+      ? 'background:conic-gradient(red,orange,yellow,lime,cyan,blue,magenta,red);color:#fff'
+      : `background:${t.color};color:${t.color}`;
+    el.innerHTML = `<span class="dot" style="${dotStyle}"></span><span>${t.name}</span>` +
+      (owned ? '' : `<span class="price">🪙 ${t.price}</span>`);
+    el.addEventListener('click', () => {
+      if (owned) { save.trail = t.id; persist(); sfx.click(); }
+      else if (save.coins >= t.price) {
+        save.coins -= t.price; save.owned.push(t.id); save.trail = t.id; persist(); sfx.buy();
+        toast(`${t.name} trail unlocked! 🎉`);
+      } else { toast(`Need ${t.price - save.coins} more coins!`); sfx.click(); }
+      renderShop();
+    });
+    box.appendChild(el);
+  }
+}
+
+// initial HUD
+$('bestVal').textContent = save.best.toLocaleString();
+$('coinVal').textContent = save.coins;
+</script>
+</body>
+</html>
