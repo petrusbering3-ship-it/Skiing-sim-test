@@ -20,12 +20,12 @@ try { Object.assign(save, JSON.parse(localStorage.getItem(SAVE_KEY) || '{}')); }
 function persist() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} }
 
 const OUTFITS = [
-  { id: 'coral',    name: 'Coral',    price: 0,    jacket: 0xff7f6e, helmet: 0xfff1e8, pants: 0x7a4a63 },
-  { id: 'mint',     name: 'Mint',     price: 250,  jacket: 0x7fe0c3, helmet: 0x2f6e5e, pants: 0x39505c },
-  { id: 'sky',      name: 'Sky',      price: 400,  jacket: 0x6fb7ff, helmet: 0xfff1e8, pants: 0x2f4a6e },
-  { id: 'lavender', name: 'Lavender', price: 700,  jacket: 0xb48ee0, helmet: 0x5e3f80, pants: 0x3c3252 },
-  { id: 'gold',     name: 'Gold',     price: 1500, jacket: 0xffd23f, helmet: 0x8a6a10, pants: 0x5c4a1a },
-  { id: 'midnight', name: 'Midnight', price: 2500, jacket: 0x39415c, helmet: 0x11141f, pants: 0x232a3f },
+  { id: 'coral',    name: 'Coral',    price: 0,    jacket: 0xff7f6e, beanie: 0xfff1e8, pants: 0x7a4a63, accent: 0xffd9a1, hair: 0x4a3226 },
+  { id: 'mint',     name: 'Mint',     price: 250,  jacket: 0x7fe0c3, beanie: 0x2f6e5e, pants: 0x39505c, accent: 0xfff1e8, hair: 0x2c2018 },
+  { id: 'sky',      name: 'Sky',      price: 400,  jacket: 0x6fb7ff, beanie: 0xfff1e8, pants: 0x2f4a6e, accent: 0xffe9a3, hair: 0x6e4a2a },
+  { id: 'lavender', name: 'Lavender', price: 700,  jacket: 0xb48ee0, beanie: 0x5e3f80, pants: 0x3c3252, accent: 0xffc9de, hair: 0x1f1a2e },
+  { id: 'gold',     name: 'Gold',     price: 1500, jacket: 0xffd23f, beanie: 0x8a6a10, pants: 0x5c4a1a, accent: 0xfff6dd, hair: 0x3a2a14 },
+  { id: 'midnight', name: 'Midnight', price: 2500, jacket: 0x39415c, beanie: 0x11141f, pants: 0x232a3f, accent: 0x8fdcff, hair: 0x11141f },
 ];
 const SPRAYS = [
   { id: 'white',   name: 'Powder',  price: 0,    color: '#ffffff' },
@@ -86,17 +86,13 @@ const sfx = {
 
 /* ============================================================ input: dual virtual joysticks + keys */
 const stickL = { x: 0, y: 0 }, stickR = { x: 0, y: 0 };
-const flickQueue = []; // {x, y} quantized flick directions from the right stick / keys
+const flickQueue = [];
 let grabHeld = false;
 
 const RADIUS = 52;
 function makeStick(el, zoneTest, state, onFlick) {
   let pid = null, baseX = 0, baseY = 0, startT = 0, flicked = false;
   const knob = el.querySelector('.knob');
-  const home = () => {
-    const r = el.getBoundingClientRect();
-    baseX = r.left + r.width / 2; baseY = r.top + r.height / 2 + 11; // +tag offset
-  };
   function down(e) {
     if (pid !== null || !zoneTest(e.clientX, e.clientY)) return;
     pid = e.pointerId; startT = performance.now(); flicked = false;
@@ -110,7 +106,7 @@ function makeStick(el, zoneTest, state, onFlick) {
     let dx = e.clientX - baseX, dy = e.clientY - baseY;
     const m = Math.hypot(dx, dy);
     if (m > RADIUS) { dx *= RADIUS / m; dy *= RADIUS / m; }
-    state.x = dx / RADIUS; state.y = -dy / RADIUS; // y up = +1
+    state.x = dx / RADIUS; state.y = -dy / RADIUS;
     knob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
     const mag = Math.hypot(state.x, state.y);
     if (onFlick && !flicked && mag > 0.8 && performance.now() - startT < 220) {
@@ -127,9 +123,8 @@ function makeStick(el, zoneTest, state, onFlick) {
   window.addEventListener('pointermove', move);
   window.addEventListener('pointerup', up);
   window.addEventListener('pointercancel', up);
-  return { home };
 }
-function quantize(x, y) { // 8-way
+function quantize(x, y) {
   const a = Math.atan2(y, x), oct = Math.round(a / (Math.PI / 4));
   const dirs = [[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1],[0,-1],[1,-1],[1,0]];
   return dirs[(oct + 8) % 8];
@@ -159,7 +154,7 @@ window.addEventListener('keydown', e => {
 });
 window.addEventListener('keyup', e => { keys[e.code] = false; });
 
-function readCarve() { // {x: steer -1..1, y: tuck(+)/brake(-)}
+function readCarve() {
   let x = stickL.x, y = stickL.y;
   if (keys.KeyA) x -= 1;
   if (keys.KeyD) x += 1;
@@ -194,7 +189,6 @@ function fbm(x, z) {
 const GRADE = 0.44, BOWL_W = 95;
 const centerX = z => Math.sin(z * 0.0035) * 55 + Math.sin(z * 0.0011) * 85;
 
-/* --- sector features: kickers, wind lips, rails, trees, rocks, coins --- */
 const SECTOR = 100;
 const sectorCache = new Map();
 function mulberry(seed) {
@@ -212,24 +206,20 @@ function sector(i) {
   const z0 = i * SECTOR, cx = centerX(z0 + 50);
   const s = { kickers: [], lips: [], rails: [], trees: [], rocks: [], coins: [] };
   if (i > 1) {
-    // kickers: gaussian bumps you launch off
     const nk = rng() < .75 ? (rng() < .35 ? 2 : 1) : 0;
     for (let k = 0; k < nk; k++) {
       const kx = cx + (rng() * 2 - 1) * 45, kz = z0 + 15 + rng() * 70;
       s.kickers.push({ x: kx, z: kz, a: 3.5 + rng() * 3.5, r: 9 + rng() * 5 });
     }
-    // wind lips: a ridge across part of the slope
     if (rng() < .3) {
       const lz = z0 + 20 + rng() * 60;
       s.lips.push({ z: lz, x: centerX(lz) + (rng() * 2 - 1) * 20, a: 2.5 + rng() * 2.5, rz: 6 + rng() * 3, rx: 30 + rng() * 25 });
     }
-    // rails
     if (rng() < .4) {
       const rx = cx + (rng() * 2 - 1) * 35, rz = z0 + 10 + rng() * 40;
       const len = 26 + rng() * 18, drift = (rng() * 2 - 1) * 8;
       s.rails.push({ x0: rx, z0: rz, x1: rx + drift, z1: rz + len });
     }
-    // coin lines following the fall line
     if (rng() < .55) {
       const n = 6 + Math.floor(rng() * 5), ox = (rng() * 2 - 1) * 30;
       for (let c = 0; c < n; c++) {
@@ -238,11 +228,9 @@ function sector(i) {
       }
     }
   }
-  // coin arcs over kickers
   for (const k of s.kickers) if (rng() < .7)
     for (let c = 0; c < 5; c++)
       s.coins.push({ x: k.x, z: k.z + 4 + c * 3.4, y: k.a + 1.5 + Math.sin((c / 4) * Math.PI) * 2.6, taken: false });
-  // trees & rocks on the flanks
   const nt = 8 + Math.floor(rng() * 8);
   for (let t = 0; t < nt; t++) {
     const tz = z0 + rng() * SECTOR;
@@ -250,7 +238,7 @@ function sector(i) {
     const tx = centerX(tz) + side * (55 + rng() * 55);
     s.trees.push({ x: tx, z: tz, s: .8 + rng() * .8 });
   }
-  if (rng() < .5) { // a couple of trees in the flow, to weave around
+  if (rng() < .5) {
     const tz = z0 + rng() * SECTOR;
     s.trees.push({ x: centerX(tz) + (rng() * 2 - 1) * 35, z: tz, s: 1 + rng() * .4 });
   }
@@ -285,9 +273,9 @@ function featureHeight(x, z) {
 function terrainHeight(x, z) {
   let y = -z * GRADE;
   const dx = (x - centerX(z)) / BOWL_W;
-  y += dx * dx * dx * dx * 26 + dx * dx * 10;          // bowl walls
-  y += (fbm(x * 0.016, z * 0.016) - .5) * 16;          // rolling terrain
-  y += (fbm(x * 0.05 + 5.2, z * 0.05 + 9.1) - .5) * 3; // detail
+  y += dx * dx * dx * dx * 26 + dx * dx * 10;
+  y += (fbm(x * 0.016, z * 0.016) - .5) * 16;
+  y += (fbm(x * 0.05 + 5.2, z * 0.05 + 9.1) - .5) * 3;
   return y + featureHeight(x, z);
 }
 const EPS = 0.6;
@@ -326,7 +314,6 @@ function resize() {
 window.addEventListener('resize', resize);
 resize();
 
-// sunset sky: screen-space gradient
 (() => {
   const c = document.createElement('canvas'); c.width = 2; c.height = 256;
   const g = c.getContext('2d');
@@ -345,7 +332,6 @@ const sun = new THREE.DirectionalLight(0xffd9b8, 1.5);
 sun.position.set(-60, 38, 120);
 scene.add(sun);
 
-// sun disc + glow, kept near the horizon ahead
 const sunDisc = new THREE.Group();
 sunDisc.add(new THREE.Mesh(new THREE.CircleGeometry(26, 32),
   new THREE.MeshBasicMaterial({ color: 0xfff0d0, fog: false, transparent: true, opacity: .95 })));
@@ -355,7 +341,6 @@ glow.position.z = -1;
 sunDisc.add(glow);
 scene.add(sunDisc);
 
-// distant peaks (repositioned modulo as you descend)
 const peaks = [];
 {
   const mat = new THREE.MeshLambertMaterial({ color: 0xd9a3c0 });
@@ -372,7 +357,7 @@ const CHUNK = 100, XMIN = -260, XMAX = 260, SEGX = 60, SEGZ = 30;
 const chunks = new Map();
 const snowMat = new THREE.MeshLambertMaterial({ vertexColors: true });
 const treeTrunkMat = new THREE.MeshLambertMaterial({ color: 0x8a5a3a });
-const treeTopMat = new THREE.MeshLambertMaterial({ color: 0xe8a7b8 });   // pastel pink pines
+const treeTopMat = new THREE.MeshLambertMaterial({ color: 0xe8a7b8 });
 const treeTopMat2 = new THREE.MeshLambertMaterial({ color: 0xc98bb0 });
 const rockMat = new THREE.MeshLambertMaterial({ color: 0xb08aa8 });
 const railMat = new THREE.MeshLambertMaterial({ color: 0x6e5a78 });
@@ -390,7 +375,6 @@ const SNOW_A = new THREE.Color(0xfffdfb), SNOW_B = new THREE.Color(0xf7ccd6), SN
 function buildChunk(ci) {
   const z0 = ci * CHUNK;
   const group = new THREE.Group();
-  // heightfield mesh
   const geo = new THREE.PlaneGeometry(XMAX - XMIN, CHUNK, SEGX, SEGZ);
   geo.rotateX(-Math.PI / 2);
   const pos = geo.attributes.position;
@@ -400,7 +384,6 @@ function buildChunk(ci) {
     const x = pos.getX(i) + (XMIN + XMAX) / 2, z = pos.getZ(i) + z0 + CHUNK / 2;
     const y = terrainHeight(x, z);
     pos.setXYZ(i, x, y, z);
-    // pastel shading: steeper → mauve, sparkle noise
     const steep = clamp((terrainHeight(x + 1, z) - y) ** 2 + (terrainHeight(x, z + 1) - y - (-GRADE)) ** 2, 0, 1);
     col.copy(SNOW_A).lerp(SNOW_B, clamp(steep * .9, 0, .8)).lerp(SNOW_C, clamp(fbm(x * .1, z * .1) - .58, 0, .3));
     colors[i * 3] = col.r; colors[i * 3 + 1] = col.g; colors[i * 3 + 2] = col.b;
@@ -409,7 +392,6 @@ function buildChunk(ci) {
   geo.computeVertexNormals();
   group.add(new THREE.Mesh(geo, snowMat));
 
-  // props from the two sectors covering this chunk (SECTOR === CHUNK)
   const s = sector(ci);
   const mkInst = (geoList, mats, items, yOf) => {
     geoList.forEach((g, gi) => {
@@ -428,7 +410,6 @@ function buildChunk(ci) {
   mkInst([trunkGeo, treeGeo[0], treeGeo[1]], [treeTrunkMat, treeTopMat, treeTopMat2], s.trees, t => terrainHeight(t.x, t.z) - .1);
   mkInst([rockGeo], rockMat, s.rocks, r => terrainHeight(r.x, r.z) + .3);
 
-  // rails
   for (const r of s.rails) {
     const y0 = terrainHeight(r.x0, r.z0) + .55, y1 = terrainHeight(r.x1, r.z1) + .55;
     const len = Math.hypot(r.x1 - r.x0, r.z1 - r.z0, y1 - y0);
@@ -444,7 +425,6 @@ function buildChunk(ci) {
       group.add(post);
     }
   }
-  // coins
   const coinMeshes = [];
   for (const c of s.coins) {
     const m = new THREE.Mesh(coinGeo, coinMat);
@@ -468,55 +448,230 @@ function updateChunks(pz) {
   }
 }
 
-/* ============================================================ skier model */
+/* ============================================================ cloth & hair: verlet ribbon sim */
+const _cv = new THREE.Vector3(), _cv2 = new THREE.Vector3(), _cv3 = new THREE.Vector3();
+class Chain {
+  constructor(n, segLen) {
+    this.n = n; this.segLen = segLen; this.init = false;
+    this.p = []; this.q = [];
+    for (let i = 0; i < n; i++) { this.p.push(new THREE.Vector3()); this.q.push(new THREE.Vector3()); }
+  }
+  step(dt, anchor, wind, t, phase) {
+    if (!this.init) { for (let i = 0; i < this.n; i++) { this.p[i].copy(anchor); this.q[i].copy(anchor); } this.init = true; }
+    this.p[0].copy(anchor);
+    const dt2 = dt * dt;
+    for (let i = 1; i < this.n; i++) {
+      const pt = this.p[i], old = this.q[i];
+      _cv.copy(pt).sub(old).multiplyScalar(.94); // damping (heavier = calmer cloth)
+      old.copy(pt);
+      pt.add(_cv);
+      pt.y -= 30 * dt2;
+      pt.addScaledVector(wind, dt2 * (1.2 + i * .8));
+      // gentle turbulence flutter, stronger at the free end
+      const fl = i / this.n;
+      pt.x += Math.sin(t * 12 + phase + i * 1.9) * dt * .13 * fl;
+      pt.y += Math.cos(t * 9.3 + phase + i * 1.4) * dt * .1 * fl;
+      pt.z += Math.sin(t * 10.7 + phase * 2 + i) * dt * .1 * fl;
+    }
+    for (let iter = 0; iter < 3; iter++) {
+      for (let i = 1; i < this.n; i++) {
+        const a = this.p[i - 1], b = this.p[i];
+        _cv.copy(b).sub(a);
+        const d = _cv.length() || 1e-5;
+        _cv.multiplyScalar((d - this.segLen) / d);
+        if (i === 1) b.sub(_cv);
+        else { a.addScaledVector(_cv, .5); b.addScaledVector(_cv, -.5); }
+      }
+    }
+  }
+}
+class ClothRibbon {
+  constructor(chain, w0, w1, color, opacity) {
+    this.chain = chain; this.w0 = w0; this.w1 = w1;
+    const n = chain.n;
+    this.geo = new THREE.BufferGeometry();
+    this.arr = new Float32Array(n * 2 * 3);
+    this.geo.setAttribute('position', new THREE.BufferAttribute(this.arr, 3));
+    const idx = [];
+    for (let i = 0; i < n - 1; i++) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+    this.geo.setIndex(idx);
+    this.mesh = new THREE.Mesh(this.geo, new THREE.MeshBasicMaterial({
+      color, side: THREE.DoubleSide, transparent: (opacity || 1) < 1, opacity: opacity || 1 }));
+    this.mesh.frustumCulled = false;
+    scene.add(this.mesh);
+  }
+  update(camPos) {
+    const c = this.chain, n = c.n;
+    for (let i = 0; i < n; i++) {
+      const p = c.p[i];
+      _cv.copy(c.p[Math.min(i + 1, n - 1)]).sub(c.p[Math.max(i - 1, 0)]);
+      _cv2.copy(camPos).sub(p);
+      _cv3.crossVectors(_cv, _cv2);
+      if (_cv3.lengthSq() < 1e-8) _cv3.set(1, 0, 0); else _cv3.normalize();
+      const w = lerp(this.w0, this.w1, i / (n - 1)) * .5;
+      this.arr[i * 6]     = p.x + _cv3.x * w; this.arr[i * 6 + 1] = p.y + _cv3.y * w; this.arr[i * 6 + 2] = p.z + _cv3.z * w;
+      this.arr[i * 6 + 3] = p.x - _cv3.x * w; this.arr[i * 6 + 4] = p.y - _cv3.y * w; this.arr[i * 6 + 5] = p.z - _cv3.z * w;
+    }
+    this.geo.attributes.position.needsUpdate = true;
+  }
+  dispose() { scene.remove(this.mesh); this.geo.dispose(); this.mesh.material.dispose(); }
+}
+
+/* ============================================================ skier model (detailed) */
+function buildSkiGeo(accent) {
+  const LEN = 1.55, W = .12, TH = .04, SEG = 16;
+  const geo = new THREE.BoxGeometry(W, TH, LEN, 1, 1, SEG);
+  const pos = geo.attributes.position;
+  const colors = new Float32Array(pos.count * 3);
+  const cTop = new THREE.Color(accent), cTip = new THREE.Color(0xfff6ee);
+  const cSide = new THREE.Color(accent).multiplyScalar(.62); // bright base — visible mid-flip
+  const col = new THREE.Color();
+  for (let i = 0; i < pos.count; i++) {
+    const z = pos.getZ(i), t = z / LEN + .5;       // 0 = tail, 1 = tip
+    const topFace = pos.getY(i) > 0;
+    // upturned tip & slight tail kick
+    let y = pos.getY(i);
+    const tipT = clamp((t - .78) / .22, 0, 1);
+    y += tipT * tipT * .17;
+    const tailT = clamp((.09 - t) / .09, 0, 1);
+    y += tailT * tailT * .05;
+    // sidecut: narrower waist under the boot
+    const sc = 1 - .24 * Math.exp(-((t - .42) ** 2) / .05);
+    pos.setXYZ(i, pos.getX(i) * sc, y, z);
+    col.copy(topFace ? cTop : cSide);
+    if (topFace && tipT > .35) col.lerp(cTip, (tipT - .35) / .65);
+    colors[i * 3] = col.r; colors[i * 3 + 1] = col.g; colors[i * 3 + 2] = col.b;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  geo.computeVertexNormals();
+  return geo;
+}
+
+const cloth = { chains: [], ribbons: [], anchors: [] };
+function clearCloth() {
+  for (const r of cloth.ribbons) r.dispose();
+  cloth.chains = []; cloth.ribbons = []; cloth.anchors = [];
+}
+function addStrand(parent, local, n, segLen, w0, w1, color, opacity) {
+  const a = new THREE.Object3D();
+  a.position.copy(local); parent.add(a);
+  const ch = new Chain(n, segLen);
+  cloth.anchors.push(a); cloth.chains.push(ch);
+  cloth.ribbons.push(new ClothRibbon(ch, w0, w1, color, opacity));
+}
+
 function buildSkier() {
   const o = OUTFITS.find(x => x.id === save.outfit) || OUTFITS[0];
   const mJacket = new THREE.MeshLambertMaterial({ color: o.jacket });
-  const mHelmet = new THREE.MeshLambertMaterial({ color: o.helmet });
+  const mJacketD = new THREE.MeshLambertMaterial({ color: new THREE.Color(o.jacket).multiplyScalar(.8) });
+  const mBeanie = new THREE.MeshLambertMaterial({ color: o.beanie });
   const mPants = new THREE.MeshLambertMaterial({ color: o.pants });
   const mSkin = new THREE.MeshLambertMaterial({ color: 0xffd9b3 });
-  const mSki = new THREE.MeshLambertMaterial({ color: 0xff5a76 });
+  const mBoot = new THREE.MeshLambertMaterial({ color: 0x2c2330 });
+  const mSkiVert = new THREE.MeshLambertMaterial({ vertexColors: true });
+  const mPole = new THREE.MeshLambertMaterial({ color: 0x8a8f9e });
+  const mAccent = new THREE.MeshLambertMaterial({ color: o.accent });
 
   const root = new THREE.Group();
-  const lean = new THREE.Group(); root.add(lean);      // roll into carves
-  const crouch = new THREE.Group(); lean.add(crouch);  // squash on landings
+  const lean = new THREE.Group(); root.add(lean);   // banking roll
+  const body = new THREE.Group(); lean.add(body);   // pose root at ski level
 
   const mkBox = (w, h, d, mat, x, y, z, parent) => {
     const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
-    m.position.set(x, y, z); (parent || crouch).add(m); return m;
+    m.position.set(x, y, z); (parent || body).add(m); return m;
   };
-  // skis
-  const skiL = mkBox(.16, .06, 1.9, mSki, -.2, .03, .15);
-  const skiR = mkBox(.16, .06, 1.9, mSki, .2, .03, .15);
-  // legs, torso
-  mkBox(.17, .5, .2, mPants, -.19, .35, 0);
-  mkBox(.17, .5, .2, mPants, .19, .35, 0);
-  const torso = mkBox(.44, .52, .3, mJacket, 0, .88, 0);
-  // head
-  const head = new THREE.Mesh(new THREE.SphereGeometry(.17, 10, 8), mSkin);
-  head.position.set(0, 1.3, .02); crouch.add(head);
-  const helmet = new THREE.Mesh(new THREE.SphereGeometry(.19, 10, 8, 0, TAU, 0, 1.5), mHelmet);
-  helmet.position.set(0, 1.33, 0); crouch.add(helmet);
-  // arms
-  const armL = new THREE.Group(); armL.position.set(-.28, 1.05, 0); crouch.add(armL);
-  const armR = new THREE.Group(); armR.position.set(.28, 1.05, 0); crouch.add(armR);
-  mkBox(.13, .48, .16, mJacket, 0, -.2, 0, armL);
-  mkBox(.13, .48, .16, mJacket, 0, -.2, 0, armR);
-  armL.rotation.z = .5; armR.rotation.z = -.5;
 
-  return { root, lean, crouch, armL, armR, skiL, skiR, torso, head };
+  // --- skis (tips face +Z / travel direction) ---
+  const skiGeo = buildSkiGeo(o.accent);
+  const skiL = new THREE.Group(), skiR = new THREE.Group();
+  skiL.position.set(-.2, .05, .12); skiR.position.set(.2, .05, .12);
+  for (const s of [skiL, skiR]) {
+    s.add(new THREE.Mesh(skiGeo, mSkiVert));
+    // binding: toe + heel piece + riser plate
+    mkBox(.11, .035, .34, mBoot, 0, .04, -.02, s);
+    mkBox(.1, .07, .09, mAccent, 0, .09, .09, s);
+    mkBox(.1, .08, .08, mAccent, 0, .09, -.13, s);
+    body.add(s);
+  }
+  // boots
+  const bootL = mkBox(.15, .19, .26, mBoot, -.2, .21, .1);
+  const bootR = mkBox(.15, .19, .26, mBoot, .2, .21, .1);
+
+  // --- legs with real knee bend: thigh → knee → shin ---
+  const hips = new THREE.Group(); hips.position.set(0, .95, .02); body.add(hips);
+  const mkLeg = sideX => {
+    const thigh = new THREE.Group(); thigh.position.set(sideX, 0, 0); hips.add(thigh);
+    mkBox(.19, .36, .22, mPants, 0, -.18, 0, thigh);          // baggy thigh
+    const knee = new THREE.Group(); knee.position.set(0, -.36, 0); thigh.add(knee);
+    mkBox(.17, .34, .19, mPants, 0, -.16, 0, knee);           // shin
+    return { thigh, knee };
+  };
+  const legL = mkLeg(-.19), legR = mkLeg(.19);
+
+  // --- torso (oversized = baggy jacket) ---
+  const torso = new THREE.Group(); torso.position.set(0, .06, 0); hips.add(torso);
+  mkBox(.52, .5, .34, mJacket, 0, .3, 0, torso);
+  mkBox(.56, .14, .38, mJacketD, 0, .04, 0, torso);           // loose hem band
+  mkBox(.2, .1, .1, mAccent, 0, .48, .15, torso);             // collar
+  // hood resting on the back
+  const hood = new THREE.Mesh(new THREE.SphereGeometry(.16, 8, 6, 0, TAU, 0, 1.9), mJacketD);
+  hood.position.set(0, .42, -.2); hood.rotation.x = 1; torso.add(hood);
+
+  // --- head: smooth face, beanie + pompom, hair flows out the back ---
+  const head = new THREE.Group(); head.position.set(0, .68, .02); torso.add(head);
+  const skull = new THREE.Mesh(new THREE.SphereGeometry(.17, 12, 10), mSkin);
+  head.add(skull);
+  const beanie = new THREE.Mesh(new THREE.SphereGeometry(.185, 12, 8, 0, TAU, 0, 1.65), mBeanie);
+  beanie.position.y = .035; head.add(beanie);
+  mkBox(.38, .07, .38, mBeanie, 0, -.02, 0, head).scale.set(1, 1, 1); // brim
+  const pom = new THREE.Mesh(new THREE.SphereGeometry(.07, 8, 6), mAccent);
+  pom.position.set(0, .2, -.02); head.add(pom);
+
+  // --- arms: baggy sleeves, two segments, holding poles ---
+  const mkArm = sideX => {
+    const shoulder = new THREE.Group(); shoulder.position.set(sideX, .42, 0); torso.add(shoulder);
+    mkBox(.17, .3, .19, mJacket, 0, -.13, 0, shoulder);       // upper sleeve
+    const elbow = new THREE.Group(); elbow.position.set(0, -.28, 0); shoulder.add(elbow);
+    mkBox(.15, .26, .17, mJacket, 0, -.12, 0, elbow);         // forearm sleeve
+    const hand = new THREE.Mesh(new THREE.SphereGeometry(.06, 6, 5), mSkin);
+    hand.position.set(0, -.27, 0); elbow.add(hand);
+    // pole
+    const pole = new THREE.Group(); pole.position.set(0, -.27, 0); elbow.add(pole);
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(.014, .014, .95, 5), mPole);
+    shaft.position.y = -.38; pole.add(shaft);
+    const basket = new THREE.Mesh(new THREE.ConeGeometry(.05, .05, 6), mAccent);
+    basket.position.y = -.78; pole.add(basket);
+    pole.rotation.x = -.55; // trail backwards
+    return { shoulder, elbow, pole };
+  };
+  const armL = mkArm(-.31), armR = mkArm(.31);
+
+  // --- cloth: hair strands, scarf, baggy jacket hem panels ---
+  clearCloth();
+  for (let i = 0; i < 5; i++)
+    addStrand(head, new THREE.Vector3((i - 2) * .05, .02, -.15), 6, .07, .065, .015, o.hair);
+  addStrand(torso, new THREE.Vector3(.06, .44, -.14), 8, .085, .07, .03, o.accent);  // scarf
+  const hemY = .02, hemC = new THREE.Color(o.jacket).multiplyScalar(.85).getHex();
+  addStrand(torso, new THREE.Vector3(-.2, hemY, -.16), 4, .09, .2, .13, hemC);       // back-left flap
+  addStrand(torso, new THREE.Vector3(.2, hemY, -.16), 4, .09, .2, .13, hemC);        // back-right flap
+  addStrand(torso, new THREE.Vector3(-.26, hemY, .05), 4, .08, .16, .1, hemC);       // side flaps
+  addStrand(torso, new THREE.Vector3(.26, hemY, .05), 4, .08, .16, .1, hemC);
+
+  return { root, lean, body, hips, torso, head, legL, legR, armL, armR, skiL, skiR };
 }
 let skier = buildSkier();
 scene.add(skier.root);
-function reskin() { scene.remove(skier.root); skier = buildSkier(); scene.add(skier.root); }
+function reskin() {
+  scene.remove(skier.root);
+  skier.root.traverse(obj => { if (obj.geometry) obj.geometry.dispose(); if (obj.material) obj.material.dispose(); });
+  skier = buildSkier(); scene.add(skier.root);
+}
 
-// blob shadow
 const shadow = new THREE.Mesh(new THREE.CircleGeometry(1, 20),
   new THREE.MeshBasicMaterial({ color: 0x8a4a6a, transparent: true, opacity: .28 }));
 scene.add(shadow);
 
-/* --- spray + snowfall particles --- */
-// soft round particle sprite (GL points are square by default)
+/* ============================================================ snow effects */
 const puffTex = (() => {
   const c = document.createElement('canvas'); c.width = c.height = 64;
   const g = c.getContext('2d');
@@ -527,23 +682,84 @@ const puffTex = (() => {
   g.fillStyle = rg; g.fillRect(0, 0, 64, 64);
   return new THREE.CanvasTexture(c);
 })();
-const SPRAY_N = 240;
-const sprayGeo = new THREE.BufferGeometry();
-const sprayPos = new Float32Array(SPRAY_N * 3), sprayVel = new Float32Array(SPRAY_N * 3), sprayLife = new Float32Array(SPRAY_N);
-sprayGeo.setAttribute('position', new THREE.BufferAttribute(sprayPos, 3));
-const sprayMat = new THREE.PointsMaterial({ color: 0xffffff, size: .55, map: puffTex, transparent: true, opacity: .75, depthWrite: false });
-const sprayPts = new THREE.Points(sprayGeo, sprayMat);
-sprayPts.frustumCulled = false;
-scene.add(sprayPts);
-let sprayIdx = 0;
-function emitSpray(x, y, z, vx, vy, vz, n) {
-  for (let i = 0; i < n; i++) {
-    const j = sprayIdx = (sprayIdx + 1) % SPRAY_N;
-    sprayPos[j * 3] = x + rand(-.3, .3); sprayPos[j * 3 + 1] = y + rand(0, .2); sprayPos[j * 3 + 2] = z + rand(-.3, .3);
-    sprayVel[j * 3] = vx + rand(-2, 2); sprayVel[j * 3 + 1] = vy + rand(.5, 3); sprayVel[j * 3 + 2] = vz + rand(-2, 2);
-    sprayLife[j] = rand(.4, .9);
+
+function makeParticles(N, size, opacity, blending) {
+  const geo = new THREE.BufferGeometry();
+  const pos = new Float32Array(N * 3), vel = new Float32Array(N * 3), life = new Float32Array(N), max = new Float32Array(N);
+  pos.fill(-9999);
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const mat = new THREE.PointsMaterial({ color: 0xffffff, size, map: puffTex, transparent: true, opacity, depthWrite: false,
+    blending: blending || THREE.NormalBlending });
+  const pts = new THREE.Points(geo, mat);
+  pts.frustumCulled = false;
+  scene.add(pts);
+  return { geo, pos, vel, life, max, mat, idx: 0, N,
+    emit(x, y, z, vx, vy, vz, n, spread, lifeMin, lifeMax) {
+      for (let i = 0; i < n; i++) {
+        const j = this.idx = (this.idx + 1) % this.N;
+        this.pos[j * 3] = x + rand(-spread, spread); this.pos[j * 3 + 1] = y + rand(0, spread * .6); this.pos[j * 3 + 2] = z + rand(-spread, spread);
+        this.vel[j * 3] = vx + rand(-2, 2); this.vel[j * 3 + 1] = vy + rand(.4, 2.4); this.vel[j * 3 + 2] = vz + rand(-2, 2);
+        this.max[j] = this.life[j] = rand(lifeMin, lifeMax);
+      }
+    },
+    step(dt, grav) {
+      for (let i = 0; i < this.N; i++) {
+        if (this.life[i] <= 0) { this.pos[i * 3 + 1] = -9999; continue; }
+        this.life[i] -= dt;
+        this.vel[i * 3 + 1] -= grav * dt;
+        this.pos[i * 3] += this.vel[i * 3] * dt;
+        this.pos[i * 3 + 1] += this.vel[i * 3 + 1] * dt;
+        this.pos[i * 3 + 2] += this.vel[i * 3 + 2] * dt;
+      }
+      this.geo.attributes.position.needsUpdate = true;
+    } };
+}
+const powder = makeParticles(260, .45, .75);                       // carve spray chunks
+const mist   = makeParticles(120, 2.1, .22);                       // billowing powder clouds
+const sparkle = makeParticles(120, .16, .9, THREE.AdditiveBlending); // glinting crystals
+
+/* --- carved ski tracks left in the snow --- */
+class SkiTrack {
+  constructor() {
+    this.MAX = 90;
+    this.pts = []; // {p:Vector3, n:Vector3}
+    this.geo = new THREE.BufferGeometry();
+    this.arr = new Float32Array(this.MAX * 2 * 3);
+    this.geo.setAttribute('position', new THREE.BufferAttribute(this.arr, 3));
+    const idx = [];
+    for (let i = 0; i < this.MAX - 1; i++) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+    this.geo.setIndex(idx);
+    this.mesh = new THREE.Mesh(this.geo, new THREE.MeshBasicMaterial({
+      color: 0xdfb0c4, transparent: true, opacity: .5, depthWrite: false }));
+    this.mesh.frustumCulled = false;
+    scene.add(this.mesh);
+    this.last = new THREE.Vector3(1e9, 0, 0);
+  }
+  push(x, y, z, n) {
+    if (this.last.distanceToSquared(_cv.set(x, y, z)) < .2) return;
+    this.last.set(x, y, z);
+    this.pts.push({ p: new THREE.Vector3(x, y, z).addScaledVector(n, .05), n: n.clone() });
+    if (this.pts.length > this.MAX) this.pts.shift();
+    this.rebuild();
+  }
+  rebuild() {
+    const n = this.pts.length, W = .1;
+    for (let i = 0; i < this.MAX; i++) {
+      if (i >= n) { for (let k = 0; k < 6; k++) this.arr[i * 6 + k] = this.arr[(n ? n - 1 : 0) * 6 + (k % 3)]; continue; }
+      const cur = this.pts[i];
+      const nxt = this.pts[Math.min(i + 1, n - 1)], prv = this.pts[Math.max(i - 1, 0)];
+      _cv.copy(nxt.p).sub(prv.p);
+      const gap = i < n - 1 && this.pts[i + 1].p.distanceToSquared(cur.p) > 9; // airborne gap → collapse
+      _cv3.crossVectors(cur.n, _cv);
+      if (_cv3.lengthSq() < 1e-8 || gap) _cv3.set(0, 0, 0); else _cv3.setLength(W * (i / n) + .02);
+      this.arr[i * 6]     = cur.p.x + _cv3.x; this.arr[i * 6 + 1] = cur.p.y + _cv3.y; this.arr[i * 6 + 2] = cur.p.z + _cv3.z;
+      this.arr[i * 6 + 3] = cur.p.x - _cv3.x; this.arr[i * 6 + 4] = cur.p.y - _cv3.y; this.arr[i * 6 + 5] = cur.p.z - _cv3.z;
+    }
+    this.geo.attributes.position.needsUpdate = true;
   }
 }
+const trackL = new SkiTrack(), trackR = new SkiTrack();
+
 const SNOW_N = 350;
 const snowGeo = new THREE.BufferGeometry();
 const snowPos = new Float32Array(SNOW_N * 3);
@@ -560,18 +776,19 @@ const G = 24;
 const player = {
   pos: new THREE.Vector3(centerX(30), 0, 30),
   vel: new THREE.Vector3(0, 0, 6),
-  heading: 0,             // yaw offset from straight downhill (+Z)
-  mode: 'ground',         // ground | air | grind | tumble
-  pitch: 0, yaw: 0,       // trick rotation accumulators (air)
+  heading: 0,
+  mode: 'ground',
+  pitch: 0, yaw: 0,
   pitchVel: 0, yawVel: 0,
+  pitchDirLanded: -1,
   grabTime: 0, grabDir: null,
-  airTricks: null,        // accumulates during a jump
+  airTricks: null,
   tumbleT: 0, tumbleAxis: new THREE.Vector3(),
   wantPop: false,
   grind: null, grindT: 0, grindScore: 0,
-  leanVis: 0, crouchVis: 0,
+  leanVis: 0, crouchVis: 0, tuckVis: 0, compress: 0,
 };
-const _n = new THREE.Vector3(), _d = new THREE.Vector3(), _tmp = new THREE.Vector3();
+const _n = new THREE.Vector3(), _d = new THREE.Vector3(), _tmp = new THREE.Vector3(), _wind = new THREE.Vector3();
 
 const game = { state: 'menu', score: 0, combo: 0, distance: 0, time: 0, lastZ: 0 };
 const mult = () => Math.min(1 + game.combo * .25, 4);
@@ -583,24 +800,21 @@ function resetPlayer() {
   player.heading = 0; player.mode = 'ground';
   player.pitch = player.yaw = player.pitchVel = player.yawVel = 0;
   player.grabTime = 0; player.airTricks = null; player.grind = null;
+  player.compress = 0;
   game.lastZ = z;
 }
-
-function dirOf(heading, out) {
-  const a = heading; // 0 = +Z (downhill)
-  return out.set(Math.sin(a), 0, Math.cos(a));
-}
+function dirOf(heading, out) { return out.set(Math.sin(heading), 0, Math.cos(heading)); }
 
 function beginAir() {
   player.mode = 'air';
   player.pitch = player.yaw = 0;
   player.pitchVel = player.yawVel = 0;
   player.grabTime = 0; player.grabDir = null;
-  player.airTricks = { flips: 0, spins: 0, dir: 0 };
+  player.airTricks = { flips: 0, spins: 0 };
 }
 function applyFlick(f) {
   sfx.flick();
-  if (player.mode === 'ground') {           // pop off the snow, trick starts airborne
+  if (player.mode === 'ground') {
     player.vel.y = Math.max(player.vel.y, 0) + 5.2;
     player.pos.y += .15;
     beginAir();
@@ -609,8 +823,8 @@ function applyFlick(f) {
   if (player.mode === 'grind') { exitGrind(1.5); beginAirKeepRot(); }
   if (player.mode !== 'air') return;
   const SPIN = TAU / .62, FLIP = TAU / .72;
-  if (f.y > 0) player.pitchVel = clamp(player.pitchVel - FLIP, -FLIP * 2, FLIP * 2);      // backflip
-  else if (f.y < 0) player.pitchVel = clamp(player.pitchVel + FLIP, -FLIP * 2, FLIP * 2); // frontflip
+  if (f.y > 0) player.pitchVel = clamp(player.pitchVel - FLIP, -FLIP * 2, FLIP * 2);
+  else if (f.y < 0) player.pitchVel = clamp(player.pitchVel + FLIP, -FLIP * 2, FLIP * 2);
   if (f.x) player.yawVel = clamp(player.yawVel + f.x * SPIN, -SPIN * 2, SPIN * 2);
 }
 function beginAirKeepRot() {
@@ -634,7 +848,6 @@ function trickName(flips, dirP, spins, grabT, grabDir) {
 }
 
 function landOrTumble() {
-  // residual rotation error
   const pitchErr = Math.abs(Math.atan2(Math.sin(player.pitch), Math.cos(player.pitch)));
   const yawErr = Math.abs(Math.atan2(Math.sin(player.yaw), Math.cos(player.yaw)));
   const flips = Math.round(Math.abs(player.pitch) / TAU);
@@ -642,9 +855,16 @@ function landOrTumble() {
   const clean = pitchErr < 1.0 && yawErr < 1.05;
   terrainNormal(player.pos.x, player.pos.z, _n);
   const impact = Math.abs(player.vel.dot(_n));
-  player.vel.addScaledVector(_n, -player.vel.dot(_n)); // kill normal component
+  player.vel.addScaledVector(_n, -player.vel.dot(_n));
   player.mode = 'ground';
-  emitSpray(player.pos.x, player.pos.y, player.pos.z, player.vel.x * .2, 1, player.vel.z * .2, Math.floor(clamp(impact, 2, 14)));
+  player.compress = clamp(impact * .09, 0, 1);
+  // landing snow: powder burst + billowing mist ring + sparkles
+  const bn = Math.floor(clamp(impact, 2, 16));
+  powder.emit(player.pos.x, player.pos.y, player.pos.z, player.vel.x * .2, 1.5, player.vel.z * .2, bn, .5, .4, .9);
+  if (impact > 4) {
+    mist.emit(player.pos.x, player.pos.y + .2, player.pos.z, player.vel.x * .1, .6, player.vel.z * .1, Math.floor(bn / 2), 1.2, .8, 1.6);
+    sparkle.emit(player.pos.x, player.pos.y + .3, player.pos.z, 0, 2, 0, 8, .8, .2, .45);
+  }
 
   const t = player.airTricks;
   const grabT = player.grabTime, grabDir = player.grabDir;
@@ -656,7 +876,7 @@ function landOrTumble() {
 
   if (t && (flips || spins || grabT > .25)) {
     let pts = flips * (player.pitchDirLanded < 0 ? 150 : 130) + spins * 110;
-    if (flips && spins) pts += 100; // cork!
+    if (flips && spins) pts += 100;
     pts += Math.floor(grabT * 10) * 12;
     game.combo++;
     const total = Math.floor(pts * mult());
@@ -671,9 +891,11 @@ function startTumble() {
   player.mode = 'tumble'; player.tumbleT = 1.3;
   player.tumbleAxis.set(rand(-1, 1), rand(-.4, .4), rand(-1, 1)).normalize();
   game.combo = 0;
+  player.compress = 1;
   showTrick('WIPEOUT', 0, true);
   sfx.thud();
-  emitSpray(player.pos.x, player.pos.y, player.pos.z, 0, 2.5, 0, 22);
+  powder.emit(player.pos.x, player.pos.y, player.pos.z, 0, 2.5, 0, 20, .8, .5, 1);
+  mist.emit(player.pos.x, player.pos.y + .3, player.pos.z, 0, .8, 0, 8, 1.5, 1, 2);
 }
 function exitGrind(popV) {
   if (player.grind) {
@@ -685,7 +907,6 @@ function exitGrind(popV) {
   player.mode = 'air';
   if (grindGain) grindGain.gain.value = 0;
 }
-
 function tryStartGrind() {
   if (player.vel.y > 1) return false;
   const si = Math.floor(player.pos.z / SECTOR);
@@ -722,71 +943,73 @@ function updatePlayer(dt) {
   }
 
   if (player.mode === 'ground') {
-    const gy = terrainHeight(player.pos.x, player.pos.z);
     terrainNormal(player.pos.x, player.pos.z, _n);
 
-    // steering
     const speed = player.vel.length();
-    player.heading += carve.x * dt * lerp(2.6, 1.5, clamp(speed / 30, 0, 1));
+    const steerRate = lerp(2.6, 1.5, clamp(speed / 30, 0, 1));
+    player.heading += carve.x * dt * steerRate;
     player.heading = clamp(player.heading, -1.35, 1.35);
     dirOf(player.heading, _d);
 
-    // slope gravity (tangential)
     _tmp.set(0, -G, 0).addScaledVector(_n, G * _n.y);
     player.vel.addScaledVector(_tmp, dt);
 
-    // carve grip: bleed lateral velocity into the heading direction
     const along = player.vel.dot(_d);
-    _tmp.copy(player.vel).addScaledVector(_d, -along); // lateral
-    const grip = carve.y < -0.2 ? 10 : 6.5;            // pull back = hard edge / brake
+    _tmp.copy(player.vel).addScaledVector(_d, -along);
+    const grip = carve.y < -0.2 ? 10 : 6.5;
     const latMag = _tmp.length();
     player.vel.addScaledVector(_tmp, -(1 - Math.exp(-grip * dt)));
-    // drag: tuck (stick up) = less drag; brake = much more
     let drag = .05 + (carve.y < -0.2 ? .5 : 0) - (carve.y > 0.3 ? .028 : 0);
     player.vel.multiplyScalar(Math.exp(-drag * dt));
     if (player.vel.length() > 42) player.vel.setLength(42);
-    // never stall (chill): gentle downhill pull
     if (player.vel.length() < 4) player.vel.addScaledVector(dirOf(0, _tmp), 2.5 * dt);
 
-    // carve spray + sound
+    // carve spray from the ski edges + glints
     const carving = clamp(latMag * .25 + Math.abs(carve.x) * speed * .04, 0, 1);
-    if (carving > .2) {
+    if (carving > .22) {
       dirOf(player.heading + (carve.x > 0 ? -.9 : .9), _tmp);
-      emitSpray(player.pos.x, player.pos.y + .1, player.pos.z, _tmp.x * 3, 1.5, _tmp.z * 3, carving > .5 ? 2 : 1);
+      powder.emit(player.pos.x, player.pos.y + .1, player.pos.z, _tmp.x * 3.2, 1.6, _tmp.z * 3.2, carving > .5 ? 2 : 1, .35, .4, .85);
+      if (carving > .55 && Math.random() < .5)
+        sparkle.emit(player.pos.x, player.pos.y + .2, player.pos.z, _tmp.x * 2, 1.5, _tmp.z * 2, 2, .4, .15, .35);
     }
+    // high-speed powder wake
+    if (speed > 24 && Math.random() < .45)
+      mist.emit(player.pos.x, player.pos.y + .1, player.pos.z, -_d.x * 2, .3, -_d.z * 2, 1, .7, .6, 1.2);
     if (carveGain) carveGain.gain.value = carving * .05 * clamp(speed / 18, 0, 1);
 
-    // integrate
     player.pos.addScaledVector(player.vel, dt);
     const newGy = terrainHeight(player.pos.x, player.pos.z);
     if (player.pos.y - newGy > .35 || player.vel.y > 3) {
-      beginAir(); // terrain fell away — natural launch off lips/kickers
+      beginAir();
     } else {
       player.pos.y = newGy;
       terrainNormal(player.pos.x, player.pos.z, _n);
-      player.vel.addScaledVector(_n, -player.vel.dot(_n)); // stay tangential
+      player.vel.addScaledVector(_n, -player.vel.dot(_n));
     }
-    player.leanVis = lerp(player.leanVis, -carve.x * .55, 10 * dt);
-    player.crouchVis = lerp(player.crouchVis, carving * .3 + (carve.y > .3 ? .35 : 0), 8 * dt);
+
+    // physical banking: lean angle from centripetal accel (a = v·ω)
+    const bank = Math.atan2(speed * Math.abs(carve.x) * steerRate, 9.8) * Math.sign(carve.x);
+    player.leanVis = lerp(player.leanVis, -clamp(bank, -1.05, 1.05), 8 * dt);
+    player.crouchVis = lerp(player.crouchVis, carving * .35, 8 * dt);
+    player.tuckVis = lerp(player.tuckVis, carve.y > .3 ? 1 : 0, 6 * dt);
 
   } else if (player.mode === 'air') {
     player.vel.y -= G * dt;
     player.pos.addScaledVector(player.vel, dt);
 
-    // trick rotation
-    player.pitch += player.pitchVel * dt;
-    player.yaw += player.yawVel * dt;
+    // tucking into a grab tightens rotation (angular momentum)
+    const spinBoost = (readGrab() && player.grabTime > .05) ? 1.22 : 1;
+    player.pitch += player.pitchVel * spinBoost * dt;
+    player.yaw += player.yawVel * spinBoost * dt;
     if (Math.abs(player.pitchVel) > .1) player.pitchDirLanded = Math.sign(player.pitchVel);
     if (player.airTricks) {
       player.airTricks.flips = Math.abs(player.pitch) / TAU;
       player.airTricks.spins = Math.abs(player.yaw) / TAU;
     }
-    // grab
     const g = readGrab();
     if (g && player.pos.y - terrainHeight(player.pos.x, player.pos.z) > .6) {
       player.grabTime += dt; player.grabDir = g;
     }
-    // landing assist: damp rotation and auto-level when close to touchdown
     const tta = estTimeToGround();
     if (tta < .34) {
       player.pitchVel *= Math.exp(-9 * dt);
@@ -796,14 +1019,14 @@ function updatePlayer(dt) {
       if (Math.abs(player.pitch - snapP) < 1.1) player.pitch = lerp(player.pitch, snapP, 1 - Math.exp(-10 * dt));
       if (Math.abs(player.yaw - snapY) < 1.15) player.yaw = lerp(player.yaw, snapY, 1 - Math.exp(-10 * dt));
     }
-    // rails
     if (player.vel.y < 1 && tryStartGrind()) { /* grinding */ }
     else {
       const gy = terrainHeight(player.pos.x, player.pos.z);
       if (player.pos.y <= gy) { player.pos.y = gy; landOrTumble(); }
     }
-    player.crouchVis = lerp(player.crouchVis, player.grabTime > 0 && readGrab() ? .55 : .15, 8 * dt);
+    player.crouchVis = lerp(player.crouchVis, player.grabTime > 0 && readGrab() ? .6 : .18, 8 * dt);
     player.leanVis = lerp(player.leanVis, 0, 6 * dt);
+    player.tuckVis = lerp(player.tuckVis, 0, 6 * dt);
 
   } else if (player.mode === 'grind') {
     const r = player.grind;
@@ -811,17 +1034,15 @@ function updatePlayer(dt) {
     const speed = player.vel.length();
     player.grindT += (speed * dt) / dl;
     player.grindScore += 22 * dt;
-    game.score += 0; // banked on exit
     if (player.grindT >= 1) { player.pos.set(r.x1, railY(r, 1) + .12, r.z1); exitGrind(2.2); }
     else {
       player.pos.set(r.x0 + dx * player.grindT, railY(r, player.grindT) + .12, r.z0 + dz * player.grindT);
-      emitSpray(player.pos.x, player.pos.y - .1, player.pos.z, 0, .8, 0, 1);
-      // steer off
+      sparkle.emit(player.pos.x, player.pos.y - .05, player.pos.z, 0, .8, 0, 1, .15, .1, .3);
       if (Math.abs(carve.x) > .75) { exitGrind(2.5); player.vel.x += carve.x * 6; }
     }
     player.heading = Math.atan2(dx, dz);
     player.leanVis = lerp(player.leanVis, 0, 10 * dt);
-    player.crouchVis = lerp(player.crouchVis, .4, 10 * dt);
+    player.crouchVis = lerp(player.crouchVis, .45, 10 * dt);
 
   } else if (player.mode === 'tumble') {
     player.tumbleT -= dt;
@@ -832,14 +1053,15 @@ function updatePlayer(dt) {
     player.vel.multiplyScalar(Math.exp(-2.2 * dt));
     player.pos.addScaledVector(player.vel, dt);
     player.pos.y = Math.max(player.pos.y - 20 * dt, gy);
-    if (Math.random() < .5) emitSpray(player.pos.x, player.pos.y, player.pos.z, 0, 1.5, 0, 1);
+    if (Math.random() < .6) powder.emit(player.pos.x, player.pos.y, player.pos.z, 0, 1.5, 0, 1, .5, .4, .8);
     if (player.tumbleT <= 0) {
       player.mode = 'ground';
       player.vel.setLength(Math.max(player.vel.length(), 5));
     }
   }
 
-  // collisions: trees & rocks (grounded only — you fly OVER them)
+  player.compress = Math.max(0, player.compress - player.compress * 6.5 * dt - dt * .3);
+
   if (player.mode === 'ground') {
     const si = Math.floor(player.pos.z / SECTOR);
     const speed = player.vel.length();
@@ -857,9 +1079,14 @@ function updatePlayer(dt) {
         if (d < 1.4 * rk.s && speed > 9) { startTumble(); player.vel.multiplyScalar(.3); }
       }
     }
+    // lay down ski tracks
+    dirOf(player.heading, _d);
+    terrainNormal(player.pos.x, player.pos.z, _n);
+    _cv2.crossVectors(_n, _d).setLength(.2);
+    trackL.push(player.pos.x - _cv2.x, terrainHeight(player.pos.x - _cv2.x, player.pos.z - _cv2.z), player.pos.z - _cv2.z, _n);
+    trackR.push(player.pos.x + _cv2.x, terrainHeight(player.pos.x + _cv2.x, player.pos.z + _cv2.z), player.pos.z + _cv2.z, _n);
   }
 
-  // coins
   {
     const si = Math.floor(player.pos.z / SECTOR);
     for (let i = si; i <= si + 1; i++) {
@@ -872,13 +1099,13 @@ function updatePlayer(dt) {
           if (c.mesh) c.mesh.visible = false;
           game.coins = (game.coins || 0) + 1;
           game.score += Math.floor(25 * mult());
+          sparkle.emit(c.x, cy, c.z, 0, 2, 0, 6, .3, .2, .4);
           sfx.coin();
         }
       }
     }
   }
 
-  // flow score from descent
   if (player.pos.z > game.lastZ) {
     game.distance += player.pos.z - game.lastZ;
     game.score += (player.pos.z - game.lastZ) * .35;
@@ -889,6 +1116,7 @@ function updatePlayer(dt) {
 
 /* ============================================================ visuals update */
 const _q1 = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _e = new THREE.Euler();
+const UP = new THREE.Vector3(0, 1, 0);
 function updateSkierVisual(dt) {
   const r = skier.root;
   r.position.copy(player.pos);
@@ -898,8 +1126,7 @@ function updateSkierVisual(dt) {
     r.quaternion.premultiply(_q1);
     r.position.y += .4;
   } else {
-    // base orientation: heading + terrain tilt when grounded
-    _e.set(0, player.heading + Math.PI, 0); // model faces -Z, so face travel dir
+    _e.set(0, player.heading, 0);
     _q1.setFromEuler(_e);
     if (player.mode === 'air') {
       _e.set(player.pitch, 0, 0); _q2.setFromEuler(_e);
@@ -909,21 +1136,51 @@ function updateSkierVisual(dt) {
       r.position.y += .1;
     } else if (player.mode === 'ground') {
       terrainNormal(player.pos.x, player.pos.z, _n);
-      _q2.setFromUnitVectors(new THREE.Vector3(0, 1, 0), _n);
+      _q2.setFromUnitVectors(UP, _n);
       _q2.multiply(_q1); _q1.copy(_q2);
     }
     r.quaternion.slerp(_q1, 1 - Math.exp(-18 * dt));
   }
-  skier.lean.rotation.z = player.leanVis;
-  skier.crouch.scale.y = 1 - player.crouchVis * .45;
-  skier.crouch.position.y = -player.crouchVis * .2;
 
-  // grab pose
-  const grabbing = player.mode === 'air' && readGrab() && player.grabTime > .05;
-  skier.armL.rotation.z = lerp(skier.armL.rotation.z, grabbing ? 1.9 : .5, 12 * dt);
-  skier.armR.rotation.z = lerp(skier.armR.rotation.z, grabbing ? -.2 : -.5, 12 * dt);
-  skier.skiL.rotation.x = lerp(skier.skiL.rotation.x, player.mode === 'air' ? -.15 : 0, 8 * dt);
+  // pose: banking lean, knee-bend crouch, landing compression, terrain chatter
+  const speed = player.vel.length();
+  let chatter = 0;
+  if (player.mode === 'ground' && speed > 6)
+    chatter = (vnoise(player.pos.x * 2.1, player.pos.z * 2.1) - .5) * clamp(speed / 26, 0, 1) * .35;
+  const crouch = clamp(player.crouchVis + player.compress * .8 + player.tuckVis * .45 + chatter, 0, 1.4);
+
+  skier.lean.rotation.z = player.leanVis;
+  skier.hips.position.y = .95 - crouch * .3;
+  const thighRot = .18 + crouch * .75, kneeRot = -.28 - crouch * 1.1;
+  skier.legL.thigh.rotation.x = thighRot; skier.legR.thigh.rotation.x = thighRot;
+  skier.legL.knee.rotation.x = kneeRot; skier.legR.knee.rotation.x = kneeRot;
+  skier.torso.rotation.x = .14 + crouch * .35 + player.tuckVis * .4;
+  // slight independent ski float in the air
+  const skiFloat = player.mode === 'air' ? -.18 : 0;
+  skier.skiL.rotation.x = lerp(skier.skiL.rotation.x, skiFloat, 8 * dt);
   skier.skiR.rotation.x = skier.skiL.rotation.x;
+
+  // arms: baggy swing with speed, reach for grabs, poles trail
+  const grabbing = player.mode === 'air' && readGrab() && player.grabTime > .05;
+  const swing = Math.sin(game.time * 2.2) * .08 * clamp(speed / 20, 0, 1);
+  skier.armL.shoulder.rotation.z = lerp(skier.armL.shoulder.rotation.z, grabbing ? 1.7 : .45 + swing, 10 * dt);
+  skier.armR.shoulder.rotation.z = lerp(skier.armR.shoulder.rotation.z, grabbing ? -.15 : -.45 + swing, 10 * dt);
+  skier.armL.shoulder.rotation.x = lerp(skier.armL.shoulder.rotation.x, player.tuckVis * .5, 8 * dt);
+  skier.armR.shoulder.rotation.x = skier.armL.shoulder.rotation.x;
+  skier.armL.elbow.rotation.x = lerp(skier.armL.elbow.rotation.x, grabbing ? -.9 : -.35 - player.tuckVis * .4, 10 * dt);
+  skier.armR.elbow.rotation.x = skier.armL.elbow.rotation.x;
+  skier.armL.pole.rotation.x = lerp(skier.armL.pole.rotation.x, -.55 - clamp(speed / 42, 0, 1) * .5, 6 * dt);
+  skier.armR.pole.rotation.x = skier.armL.pole.rotation.x;
+
+  // cloth & hair: wind = apparent airflow from motion
+  r.updateMatrixWorld(true);
+  _wind.copy(player.vel).multiplyScalar(-1.1);
+  _wind.y += .5; // slight updraft keeps cloth lively
+  for (let i = 0; i < cloth.chains.length; i++) {
+    cloth.anchors[i].getWorldPosition(_tmp);
+    cloth.chains[i].step(dt, _tmp, _wind, game.time, i * 1.37);
+    cloth.ribbons[i].update(camera.position);
+  }
 
   // blob shadow
   const gy = terrainHeight(player.pos.x, player.pos.z);
@@ -942,7 +1199,11 @@ function updateCamera(dt, instant) {
   dirOf(player.heading * .7, _d);
   const back = 8 + speed * .09;
   camPos.copy(player.pos).addScaledVector(_d, -back).add(_tmp.set(0, 3.4 + (player.mode === 'air' ? .8 : 0), 0));
-  // keep camera above terrain
+  camPos.y -= player.compress * .55; // landing dip
+  if (speed > 26) { // subtle speed shake
+    const a = (speed - 26) * .004;
+    camPos.x += rand(-a, a); camPos.y += rand(-a, a);
+  }
   const cg = terrainHeight(camPos.x, camPos.z) + 1.2;
   if (camPos.y < cg) camPos.y = cg;
   camLook.copy(player.pos).addScaledVector(_d, 5).add(_tmp.set(0, 1.1, 0));
@@ -953,7 +1214,6 @@ function updateCamera(dt, instant) {
   camera.fov = lerp(camera.fov, fovT, 1 - Math.exp(-3 * dt));
   camera.updateProjectionMatrix();
 
-  // sun + peaks follow
   sunDisc.position.set(camera.position.x - 40, camera.position.y + 26, camera.position.z + 330);
   sunDisc.lookAt(camera.position);
   for (const p of peaks) {
@@ -964,18 +1224,12 @@ function updateCamera(dt, instant) {
 }
 
 function updateParticles(dt) {
-  for (let i = 0; i < SPRAY_N; i++) {
-    if (sprayLife[i] <= 0) { sprayPos[i * 3 + 1] = -9999; continue; }
-    sprayLife[i] -= dt;
-    sprayVel[i * 3 + 1] -= 14 * dt;
-    sprayPos[i * 3] += sprayVel[i * 3] * dt;
-    sprayPos[i * 3 + 1] += sprayVel[i * 3 + 1] * dt;
-    sprayPos[i * 3 + 2] += sprayVel[i * 3 + 2] * dt;
-  }
-  sprayGeo.attributes.position.needsUpdate = true;
-  sprayMat.color.copy(sprayColor(game.time));
+  powder.step(dt, 13);
+  mist.step(dt, 1.2);
+  sparkle.step(dt, 5);
+  powder.mat.color.copy(sprayColor(game.time));
+  mist.mat.color.copy(sprayColor(game.time)).lerp(new THREE.Color(0xffffff), .5);
 
-  // snowfall drifts around the camera
   for (let i = 0; i < SNOW_N; i++) {
     snowPos[i * 3 + 1] -= dt * 2.2;
     snowPos[i * 3] += Math.sin(game.time * .7 + i) * dt * .6;
@@ -984,7 +1238,6 @@ function updateParticles(dt) {
   snowGeo.attributes.position.needsUpdate = true;
   snowPts.position.copy(camera.position);
 
-  // spin coins
   const ci = Math.floor(player.pos.z / CHUNK);
   for (let i = ci; i <= ci + 2; i++) {
     const ch = chunks.get(i);
@@ -1121,7 +1374,6 @@ function frame(now) {
     updateCamera(dt);
     updateHUD();
   } else if (game.state === 'menu') {
-    // idle: slow orbit around the resting skier
     const a = game.time * .22;
     camera.position.set(player.pos.x + Math.sin(a) * 11, player.pos.y + 4, player.pos.z + Math.cos(a) * 11);
     camera.lookAt(player.pos.x, player.pos.y + 1, player.pos.z);
@@ -1140,4 +1392,4 @@ toMenu();
 requestAnimationFrame(frame);
 
 /* debug handle for automated verification */
-window.G = { game, player, save, terrainHeight, sector, startRun, flickQueue, applyFlick, persist, THREE };
+window.G = { game, player, save, terrainHeight, sector, startRun, flickQueue, applyFlick, persist, THREE, cloth };
